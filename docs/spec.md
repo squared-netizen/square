@@ -31,6 +31,7 @@ file: to back it up, share it, or keep it in a drive.
 | Path | Written by | Class | What it is |
 | --- | --- | --- | --- |
 | `SQ-INF/manifest.json` | square (sqpg, the first time, through libsquare) | metadata | what the workspace is (§2.2) |
+| `SQ-INF/files.json` | square | metadata | the provenance table: each generated path's class, origin and sha256 (§2.2) |
 | `.squared/` | square | metadata | its journal, staging and lock while a change runs (§6), nothing else |
 | `build.lua` | the template, once; then the developer | seeded | how the project builds (§4) |
 | `sq/build/*.lua` | the template and each kit; replaced on update | generated | the build's conventions, which `build.lua` includes (§4) |
@@ -74,7 +75,8 @@ reading them.
 - **`consumers.square.roles`**: a path for each role. This is how a tool
   finds the app, its layouts or its assets without guessing from folder
   names (squared-pg §2.7.3 allows any layout).
-- **`consumers.square.files`**: the provenance table. One entry per path
+- **The provenance table** (in `SQ-INF/files.json`, beside the manifest,
+  §9; shown here inside it for brevity): One entry per path
   that a template, kit or package wrote: its class, its origin, and its
   sha256 as written. A file that is not listed is the developer's.
 - **`consumers.squared_pg`**: what sqpg needs to generate again, such as the
@@ -157,8 +159,8 @@ square describe
 - **libsquare**: the same calls in process, as `sq::data::JsonValue`, for
   sqgui and for sqpg.
 - **Calls go one way.** square calls sqcart (cartridges) and squared-pg's
-  engine (writing files, §6). sqpg and sqgui call square. square calls sqmake
-  only to answer `verify --build`, and sqmake never calls square.
+  engine (writing files, §6). sqpg and sqgui call square. square never calls
+  sqmake, and sqmake never calls square (§9).
 
 ## 6. Changing a workspace (decided)
 
@@ -213,12 +215,14 @@ declared.
 5. **Extract**: templates, then kits and packages. Gate: a template
    extracted from sqterm generates a new workspace that builds and runs.
 
-## 9. Open questions
+## 9. Decided 2026-11-20 (the open questions of draft 0.1)
 
-- [ ] `sq/build/`: the folder for generated build files (`sq/` would also
-  suit other generated tool files of a workspace's), or another name.
-- [ ] Does the provenance table (`consumers.square.files`) belong in the
-  manifest, or in a file of its own beside it (`SQ-INF/files.json`)? sqterm's
-  has 1,655 entries, and the manifest is read on every question.
-- [ ] `verify --build`: whether square should ever run a build itself, or
-  only say what changed.
+- [x] **`sq/build/`** holds the generated build files; `sq/` is where any
+  other generated tool file of a workspace goes.
+- [x] **The provenance table is a file of its own**, `SQ-INF/files.json`
+  (tool-written JSON, in the cartridge), not a member of the manifest: the
+  manifest stays small, and it is read on every question. §2.2's
+  `consumers.square.files` moves there: `{"<path>": {"class", "origin",
+  "sha256"}}`.
+- [x] **square never runs a build.** `verify` says what changed; building is
+  sqmake's, asked by the developer or by sqpg, never by square.
