@@ -5,15 +5,22 @@ and the one tool that knows what a workspace is. sqpg creates a workspace
 once; from then on square answers every question about it and makes every
 change to its shape.
 
-**Status: designed, not yet built.**
+**Status: specified, not yet built.** [docs/spec.md](docs/spec.md), draft 0.1
+(2026-11-20).
 
 ## What it will do
 
 - **Answer questions, in JSON.** `square info`, `square where <role>` (the
   app, its layouts, its docs), `square owner <path>`, `square verify`,
-  `square build-inputs` for sqmake, `square explain <shim>` for sqgui. Each
-  answer is one versioned JSON envelope, through the command line or
-  through `libsquare`, a C++ module the other tools link in. No daemon.
+  `square explain <shim>` for sqgui: the SDK's tool protocol (`square call`,
+  `square describe`), and the same in process through `libsquare`. No daemon.
+- **Keep a workspace's record.** A workspace is an exploded cartridge
+  (`SQ-INF/manifest.json`, kind `workspace`): its template, kits and packages,
+  each path's role and ownership. People write Lua (`build.lua`); square
+  writes the JSON.
+- **Leave the build to the workspace.** A template's and a kit's build
+  conventions are Lua files in the workspace (`sq/build/*.lua`) that
+  `build.lua` includes, so sqmake builds it asking square nothing.
 - **Ask sqcart, never read manifests itself.** Every manifest is defined by
   the Squared Cartridge Specification; square reads the sections addressed
   to it through sqcart, so a change in the format touches sqcart and square
@@ -30,11 +37,13 @@ change to its shape.
 ## Where it sits
 
 ```text
-sqpg (creates)   sqmake (builds)   sqgui (edits the UI)   you
-          \            |                 |               /
+sqpg (creates)        sqgui (edits the UI)        you
+          \                   |                  /
                          square
-          /            |                 \
-     sqcart     squared-pg's engine     dexgen
+          /                   |                  \
+     sqcart          squared-pg's engine         dexgen
+
+sqmake builds the workspace from its build.lua, and asks square nothing.
 ```
 
 ## Licence
