@@ -105,6 +105,11 @@ the workspace, so an answer stays right on another machine.
 | `add` (`id`) | adds a kit or a package (§6) | as §6 |
 | `update` (`id`) | moves the template, a kit or a package to a newer version (§6) | as §6 |
 | `extract` (`what`, `paths`) | turns parts of the workspace into a template, kit or package (§7) | as §7 |
+| `backup` (`file`) | the workspace packed into one `.sq` file **with its `.git/`** (`sqcart pack --keep .git`); restored with `sqcart unpack --executable` so its hooks run | the tree |
+
+A plain `sqcart pack` of a workspace (to share it) leaves `.git/` and
+`.squared/` out, as every top-level dot folder (sqcart's spec §6); only
+`backup` keeps `.git/`. `.squared/` is never kept.
 
 **`build-inputs` is gone** (2026-11-20). sqmake asks square nothing (§4).
 
