@@ -48,19 +48,20 @@ changes only through square's commands (§5), each one a plan they see first.
 
 ### 2.2 The manifest
 
-sqcart's envelope (identity, `kind: "workspace"`, version, provenance), and
-one member of `consumers` for each tool that gives the workspace a meaning.
+sqcart's envelope (identity, `kind: "workspace"`, version), and one member
+of `consumers` for each tool that gives the workspace a meaning. sqcart
+knows none of it: a kind, and what a workspace is, are square's (sqcart's
+spec §7).
 Only that tool reads or changes its member; sqcart keeps them all without
 reading them.
 
 ```json
 {"format": "squared-cartridge", "format_version": 3,
  "kind": "workspace", "id": "dev.squared.sqterm", "version": "0.1.0", "title": "sqterm",
- "provenance": {"generator": {"id": "squared-pg", "version": "0.1.0-alpha.1"},
-                "template": "template.android.cpp@0.1.0", "kits": [],
-                "packages": ["package.squared-core@1.0.0"], "framework": "1.0.0"},
  "consumers": {
    "square": {
+     "made_from": {"generator": "squared-pg@0.1.0-alpha.1", "template": "template.android.cpp@0.1.0",
+                   "kits": [], "packages": ["package.squared-core@1.0.0"], "framework": "1.0.0"},
      "roles": {"app": "sq_app", "android": "sq_android", "assets": "sq_android/assets",
                "layouts": "sq_app/layouts", "build": "build", "docs": "docs"},
      "files": {"squared/data/json.cppm": {"class": "generated", "origin": "package.squared-core",
@@ -70,8 +71,9 @@ reading them.
  }}
 ```
 
-- **`provenance`**: the template, kits and packages the workspace came from,
-  with versions (cartridge spec §5.5).
+- **`consumers.square.made_from`**: the generator, template, kits and
+  packages the workspace came from, with versions. square's, not the
+  envelope's: the cartridge format records no provenance (its §7).
 - **`consumers.square.roles`**: a path for each role. This is how a tool
   finds the app, its layouts or its assets without guessing from folder
   names (squared-pg §2.7.3 allows any layout).
