@@ -5,11 +5,13 @@ and the one tool that knows what a workspace is. sqpg creates a workspace
 once; from then on square answers every question about it and makes every
 change to its shape.
 
-**Status: phase 1 under way** (0.2.0, 2026-11-23): `info`, `where`, `owner`,
+**Status: phase 1 built** (0.3.0, 2026-11-23): `info`, `where`, `owner`,
 `verify`, `resources` and `show`, as words and as `square call`, on the
 workspaces sqpg 0.1.0-alpha.2 writes and the cartridges it installs.
 Manifests are read through sqcart (vendored in `third_party/sqcart`).
-libsquare comes next; then the build conventions, and changing a workspace. [docs/spec.md](docs/spec.md),
+libsquare (`make lib`: `build/libsquare.a` and the module `square`) gives
+sqpg and sqgui the same calls in process. Next: the build conventions, and
+changing a workspace. [docs/spec.md](docs/spec.md),
 draft 0.1 (2026-11-20).
 
 ```sh

@@ -209,8 +209,8 @@ declared.
 ## 8. Phases
 
 1. **Read**: `info`, `where`, `owner`, `verify`, `resources`, `show`, as
-   `call`, `describe`, words and libsquare. (Built in 0.2.0, but for
-   libsquare and the sqterm gate. `resources` searches `--resources PATH`,
+   `call`, `describe`, words and libsquare. (Built in 0.3.0, but for
+   the sqterm gate; libsquare is `build/libsquare.a` and the module `square`. `resources` searches `--resources PATH`,
    else `$SQUARE_RESOURCES`, else `$PREFIX/share/squared-pg/resources` and
    `/usr/local/share/squared-pg/resources`, each folder and its
    `templates/`, `kits/`, `packages/` and `assets/`.) Before it, cartridge spec 3.0 and
