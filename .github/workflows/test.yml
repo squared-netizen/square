@@ -1,0 +1,30 @@
+# Builds square with clang and libc++ 23 (the SDK's toolchain, from
+# apt.llvm.org) and runs make test: tests/run_check.sh, square's commands on
+# a workspace made as sqpg makes one.
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: clang and libc++ 23
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" | sudo tee /etc/apt/sources.list.d/llvm-23.list
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends clang-23 lld-23 llvm-23 libc++-23-dev libc++abi-23-dev
+          echo "/usr/lib/llvm-23/bin" >> "$GITHUB_PATH"
+      - name: make test
+        run: |
+          clang++ --version | head -n 1
+          make -j4 test CXX=clang++ CC=clang
