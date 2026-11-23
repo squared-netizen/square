@@ -8,10 +8,13 @@
 //   square where ROLE                 a role's path: app, android, layouts, ...
 //   square owner PATH                 a path's class, origin, and whether it changed
 //   square verify                     what changed since it was written
+//   square resources [KIND]           templates, kits, packages and assets found
+//   square show ID[@VERSION]          one of them: what it is and needs
 //   square call < REQUEST.json        one request, one response (the SDK's protocol)
 //   square describe                   what it answers
 //
 //   --workspace DIR   that workspace, rather than the one here or above
+//   --resources PATH  search PATH[:PATH...] for resources ($SQUARE_RESOURCES)
 //   --json            the answer as JSON (the call's result)
 
 #include <stdio.h>  // stderr, stdout: macros, which import std does not bring
@@ -29,6 +32,8 @@ int usage(std::FILE* out = stderr, int status = 2) {
                  "       square [--workspace DIR] [--json] where ROLE\n"
                  "       square [--workspace DIR] [--json] owner PATH\n"
                  "       square [--workspace DIR] [--json] verify\n"
+                 "       square [--resources PATH] [--json] resources [KIND]\n"
+                 "       square [--resources PATH] [--json] show ID[@VERSION]\n"
                  "       square call < REQUEST.json\n"
                  "       square describe\n"
                  "       square --help | --version");
@@ -84,6 +89,35 @@ void say(std::string_view command, const sq::data::JsonValue& r) {
             std::println("{:<8} {}  ({}{})", text(f.find("state")), text(f.find("path")), text(f.find("class")),
                          generated ? "; an update would overwrite it" : "");
         }
+    } else if (command == "resources") {
+        const sq::data::JsonValue* list = r.find("resources");
+        if (list != nullptr && list->array_if() != nullptr) {
+            for (const auto& c : *list->array_if()) {
+                std::println("{:<9} {:<26} {:<9} {}", text(c.find("kind")), text(c.find("id")), text(c.find("version")),
+                             text(c.find("title")));
+            }
+        }
+        if (list == nullptr || list->array_if() == nullptr || list->array_if()->empty()) {
+            std::println("no resources found (search: --resources PATH or $SQUARE_RESOURCES)");
+        }
+        if (const sq::data::JsonValue* problems = r.find("problems"); problems != nullptr && problems->array_if() != nullptr) {
+            for (const auto& p : *problems->array_if()) {
+                std::println(stderr, "square: refused {}: {}", text(p.find("path")), text(p.find("message")));
+            }
+        }
+    } else if (command == "show") {
+        std::println("{} {}  {}  {}", text(r.find("id")), text(r.find("version")), text(r.find("kind")), text(r.find("title")));
+        if (const std::string d = text(r.find("description")); !d.empty()) std::println("  {}", d);
+        for (const char* key : {"requires", "requires_features"}) {
+            const sq::data::JsonValue* v = r.find(key);
+            if (v == nullptr || v->is_null()) continue;
+            if (v->array_if() != nullptr && v->array_if()->empty()) continue;
+            if (v->object_if() != nullptr && v->object_if()->empty()) continue;
+            std::println("  {:<9} {}", std::string_view(key) == "requires" ? "requires" : "features", json(*v, false));
+        }
+        const sq::data::JsonValue* files = r.find("files");
+        std::println("  files     {}", files != nullptr ? json(*files, false) : "?");
+        std::println("  path      {}", text(r.find("path")));
     } else {
         std::println("{}", json(r, true));
     }
@@ -94,6 +128,7 @@ void say(std::string_view command, const sq::data::JsonValue& r) {
 int main(int argc, char** argv) {
     std::vector<std::string_view> args(argv + 1, argv + argc);
     std::optional<std::string> workspace;
+    std::optional<std::string> resource_path;
     bool as_json = false;
     std::vector<std::string_view> words;
     for (std::size_t i = 0; i < args.size(); ++i) {
@@ -107,6 +142,9 @@ int main(int argc, char** argv) {
         } else if (args[i] == "--workspace") {
             if (i + 1 >= args.size()) return usage();
             workspace = std::string(args[++i]);
+        } else if (args[i] == "--resources") {
+            if (i + 1 >= args.size()) return usage();
+            resource_path = std::string(args[++i]);
         } else if (args[i].starts_with("--")) {
             return usage();
         } else {
@@ -127,9 +165,13 @@ int main(int argc, char** argv) {
 
     sq::data::JsonValue::Object request_args;
     if (workspace) request_args.emplace("workspace", sq::data::JsonValue(*workspace));
-    if (command == "where" || command == "owner") {
+    if (resource_path) request_args.emplace("search", sq::data::JsonValue(*resource_path));
+    if (command == "where" || command == "owner" || command == "show") {
         if (words.size() != 2) return usage();
-        request_args.emplace(command == "where" ? "role" : "path", sq::data::JsonValue(words[1]));
+        request_args.emplace(command == "where" ? "role" : command == "owner" ? "path" : "id", sq::data::JsonValue(words[1]));
+    } else if (command == "resources") {
+        if (words.size() > 2) return usage();
+        if (words.size() == 2) request_args.emplace("kind", sq::data::JsonValue(words[1]));
     } else if (words.size() != 1) {
         return usage();
     }

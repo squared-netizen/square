@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # tests/run_check.sh SQUARE: square's commands on a workspace made here, as
-# sqpg makes one (SQ-INF/manifest.json of kind workspace, SQ-INF/files.json):
-# the words, the JSON answers, `call` and its errors, and the exit statuses.
+# sqpg makes one (SQ-INF/manifest.json of kind workspace, SQ-INF/files.json),
+# and on resources (cartridges on a search path): the words, the JSON
+# answers, `call` and its errors, and the exit statuses.
 set -euo pipefail
 
 square=$(realpath "$1")
@@ -71,5 +72,36 @@ resp=$(cd "$ws" && printf '{"sq": 1, "command": "frob"}' | "$square" call) || tr
 grep -q '"code":"request.command.unknown"' <<< "$resp" || die "call, unknown command: $resp"
 "$square" describe | grep -q '"tool": "square"' || die "describe"
 ok "call: the SDK's protocol, its answers and its error codes; describe"
+
+# Resources: cartridges on a search path, in it or in templates/, kits/ ...
+res=$work/resources
+cart() {  # cart DIR KIND ID VERSION TITLE [EXTRA-JSON]
+    mkdir -p "$1/SQ-INF" "$1/tree"
+    printf 'x\n' > "$1/tree/a.txt"
+    printf '{"format": "squared-cartridge", "format_version": 3, "kind": "%s", "id": "%s", "version": "%s", "title": "%s"%s}\n' \
+        "$2" "$3" "$4" "$5" "${6:-}" > "$1/SQ-INF/manifest.json"
+}
+cart "$res/templates/template.demo" template template.demo 0.1.0 "A demo" \
+    ', "description": "Made for the check.", "requires": {"packages": ["package.core"]}'
+cart "$res/kits/kit.demo" kit kit.demo 0.2.0 "Demo kit"
+mkdir -p "$res/kits/kit.broken/SQ-INF"
+printf '{"format": "squared-cartridge", "format_version": 2}\n' > "$res/kits/kit.broken/SQ-INF/manifest.json"
+out=$("$square" --resources "$res" resources 2> "$work/err.txt")
+grep -q '^template  template.demo .* 0.1.0 .* A demo$' <<< "$out" || die "resources: the template: $out"
+grep -q '^kit .* kit.demo .* 0.2.0' <<< "$out" || die "resources: the kit"
+grep -q 'refused .*kit.broken' "$work/err.txt" || die "resources: a refused cartridge not reported"
+SQUARE_RESOURCES=$res "$square" resources kit 2>/dev/null | grep -q template && die "resources KIND did not filter"
+SQUARE_RESOURCES=$res "$square" --json resources 2>/dev/null | grep -q '"id": "kit.demo"' || die "resources from \$SQUARE_RESOURCES"
+ok "resources: found on the search path, by kind; one sq.cart refuses is reported, not fatal"
+
+out=$("$square" --resources "$res" show template.demo)
+grep -q 'Made for the check.' <<< "$out" && grep -q 'package.core' <<< "$out" && grep -q 'files     2' <<< "$out" ||
+    die "show: $out"
+"$square" --resources "$res" show kit.demo@0.2.0 > /dev/null || die "show id@version"
+! "$square" --resources "$res" show kit.demo@9 2> "$work/err.txt" && grep -q 'no resource kit.demo@9' "$work/err.txt" ||
+    die "show an absent version"
+resp=$(printf '{"sq": 1, "command": "show", "args": {"id": "kit.demo", "search": "%s"}}' "$res" | "$square" call)
+grep -q '"version":"0.2.0"' <<< "$resp" || die "call show: $resp"
+ok "show: description, requires, files; id@version; absent refused; as a call"
 
 echo "run check passed"
