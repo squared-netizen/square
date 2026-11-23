@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/run_check.sh SQUARE: square's commands on a workspace made here, as
+# tests/run_check.sh SQUARE [TEST_LIBSQUARE]: square's commands on a workspace made here, as
 # sqpg makes one (SQ-INF/manifest.json of kind workspace, SQ-INF/files.json),
 # and on resources (cartridges on a search path): the words, the JSON
 # answers, `call` and its errors, and the exit statuses.
@@ -103,5 +103,11 @@ grep -q 'Made for the check.' <<< "$out" && grep -q 'package.core' <<< "$out" &&
 resp=$(printf '{"sq": 1, "command": "show", "args": {"id": "kit.demo", "search": "%s"}}' "$res" | "$square" call)
 grep -q '"version":"0.2.0"' <<< "$resp" || die "call show: $resp"
 ok "show: description, requires, files; id@version; absent refused; as a call"
+
+# libsquare: the same calls in process (tests/test_libsquare.cpp), when built.
+if [ -n "${2:-}" ]; then
+    "$2" "$ws" "$res" > "$work/lib.txt" || { cat "$work/lib.txt"; die "libsquare"; }
+    ok "libsquare: square::call in process, and a question called directly"
+fi
 
 echo "run check passed"

@@ -18,7 +18,7 @@ import square.resources;
 
 export namespace square {
 
-inline constexpr std::string_view tool_version = "0.2.0";
+inline constexpr std::string_view tool_version = "0.3.0";
 
 /// What square answers: its commands and their arguments.
 inline JsonValue describe() {
@@ -101,19 +101,30 @@ inline Answer run(std::string_view command, const JsonValue* args, const std::fi
                                    JsonValue(JsonValue::Object{{"commands", JsonValue(std::move(known))}})});
 }
 
-/// A whole request, as text, into its response, as a JsonValue.
-inline JsonValue call(std::string_view request, const std::filesystem::path& from) {
-    const auto parsed = sq::data::parse_json(request);
-    if (!parsed) return detail::response_error({"request.json", "the request is not JSON"});
-    if (!detail::is_one(parsed.value.find("sq"))) {
+/// A request, as a JsonValue, into its response: libsquare's call, in
+/// process, for sqpg and sqgui. `from` is the folder a relative path or the
+/// search for the workspace starts from.
+inline JsonValue call(const JsonValue& request, const std::filesystem::path& from) {
+    if (!detail::is_one(request.find("sq"))) {
         return detail::response_error({"request.protocol", "not an SDK request (sq: 1)"});
     }
-    const JsonValue* command = parsed.value.find("command");
+    const JsonValue* command = request.find("command");
     if (command == nullptr || command->string_if() == nullptr) {
         return detail::response_error({"request.command", "no command"});
     }
-    const Answer answer = run(*command->string_if(), parsed.value.find("args"), from);
+    const Answer answer = run(*command->string_if(), request.find("args"), from);
     return answer ? detail::response_ok(*answer) : detail::response_error(answer.error());
+}
+
+/// A whole request, as text, into its response (`square call`).
+inline JsonValue call(std::string_view request, const std::filesystem::path& from) {
+    const auto parsed = sq::data::parse_json(request);
+    if (!parsed) return detail::response_error({"request.json", "the request is not JSON"});
+    return call(parsed.value, from);
+}
+/// The same, from a std::string (which would convert to either of the two).
+inline JsonValue call(const std::string& request, const std::filesystem::path& from) {
+    return call(std::string_view(request), from);
 }
 
 }  // namespace square

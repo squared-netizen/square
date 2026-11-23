@@ -2,6 +2,8 @@
 #
 #   make CXX=/path/to/clang++   clang and libc++ 23 with `import std;`
 #   make test                    the run check: square on a generated workspace
+#   make lib                     libsquare: build/libsquare.a and its module,
+#                                square (build/pcm/square.pcm), for sqpg and sqgui
 #
 # Offline: sq.cart (the cartridge reader, with squared's sq.data and yyjson
 # inside it) is vendored in third_party/sqcart (tools/vendor_sqcart.sh) and
@@ -31,9 +33,11 @@ STD_CPPM     ?= $(if $(filter /%,$(STD_SOURCE)),$(STD_SOURCE),$(if $(STD_SOURCE)
 CART_LIBS := $(CART_B)/libsqcart.a $(CART_B)/libsqcart-unzstd.a
 MODULES   := workspace resources call
 OBJS      := $(MODULES:%=$(BUILD)/obj/%.o)
+LIB       := $(BUILD)/libsquare.a
 
-.PHONY: all test clean sqcart
-all: $(BUILD)/square
+.PHONY: all lib test clean sqcart
+all: $(BUILD)/square lib
+lib: $(LIB) $(BUILD)/pcm/square.pcm
 
 # sqcart's own build, told the std module's source and not to look for it.
 sqcart:
@@ -50,11 +54,21 @@ $(eval $(call unit,workspace,))
 $(eval $(call unit,resources,$(BUILD)/pcm/square.workspace.pcm))
 $(eval $(call unit,call,$(BUILD)/pcm/square.workspace.pcm $(BUILD)/pcm/square.resources.pcm))
 
-$(BUILD)/square: tools/square.cpp $(OBJS) $(CART_LIBS)
-	$(CXX) $(CXXFLAGS) $< $(OBJS) $(CART_LIBS) $(LDFLAGS) -o $@
+# libsquare's one module, square, which re-exports the three.
+$(BUILD)/pcm/square.pcm $(BUILD)/obj/square.o &: src/square.cppm $(MODULES:%=$(BUILD)/pcm/square.%.pcm)
+	$(CXX) $(CXXFLAGS) -c $< -fmodule-output=$(BUILD)/pcm/square.pcm -o $(BUILD)/obj/square.o
+$(LIB): $(OBJS) $(BUILD)/obj/square.o
+	rm -f $@
+	ar rcs $@ $^
 
-test: all
-	@bash tests/run_check.sh $(BUILD)/square
+$(BUILD)/square: tools/square.cpp $(LIB) $(CART_LIBS)
+	$(CXX) $(CXXFLAGS) $< $(LIB) $(CART_LIBS) $(LDFLAGS) -o $@
+
+$(BUILD)/test_libsquare: tests/test_libsquare.cpp $(BUILD)/pcm/square.pcm $(LIB) $(CART_LIBS)
+	$(CXX) $(CXXFLAGS) $< $(LIB) $(CART_LIBS) $(LDFLAGS) -o $@
+
+test: all $(BUILD)/test_libsquare
+	@bash tests/run_check.sh $(BUILD)/square $(BUILD)/test_libsquare
 
 clean:
 	rm -rf $(BUILD)
