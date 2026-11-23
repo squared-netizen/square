@@ -5,8 +5,21 @@ and the one tool that knows what a workspace is. sqpg creates a workspace
 once; from then on square answers every question about it and makes every
 change to its shape.
 
-**Status: specified, not yet built.** [docs/spec.md](docs/spec.md), draft 0.1
-(2026-11-20).
+**Status: phase 1 begun** (0.1.0, 2026-11-23): `info`, `where`, `owner` and
+`verify`, as words and as `square call`, on the workspaces sqpg 0.1.0-alpha.2
+writes. `resources`, `show` (through sqcart) and libsquare come next; then
+the build conventions, and changing a workspace. [docs/spec.md](docs/spec.md),
+draft 0.1 (2026-11-20).
+
+```sh
+make CXX=clang++ && make test       # clang and libc++ 23, `import std`
+cd my-workspace/sq_app
+square info                          # what it is, what it was made from, its roles
+square where layouts                 # sq_app/layouts
+square owner ../build.lua            # build.lua  seeded  from template.android.cpp
+square verify                        # what changed since it was written (non-zero if anything)
+echo '{"sq": 1, "command": "where", "args": {"role": "app"}}' | square call
+```
 
 ## What it will do
 
