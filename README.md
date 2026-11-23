@@ -5,10 +5,11 @@ and the one tool that knows what a workspace is. sqpg creates a workspace
 once; from then on square answers every question about it and makes every
 change to its shape.
 
-**Status: phase 1 begun** (0.1.0, 2026-11-23): `info`, `where`, `owner` and
-`verify`, as words and as `square call`, on the workspaces sqpg 0.1.0-alpha.2
-writes. `resources`, `show` (through sqcart) and libsquare come next; then
-the build conventions, and changing a workspace. [docs/spec.md](docs/spec.md),
+**Status: phase 1 under way** (0.2.0, 2026-11-23): `info`, `where`, `owner`,
+`verify`, `resources` and `show`, as words and as `square call`, on the
+workspaces sqpg 0.1.0-alpha.2 writes and the cartridges it installs.
+Manifests are read through sqcart (vendored in `third_party/sqcart`).
+libsquare comes next; then the build conventions, and changing a workspace. [docs/spec.md](docs/spec.md),
 draft 0.1 (2026-11-20).
 
 ```sh
@@ -18,6 +19,8 @@ square info                          # what it is, what it was made from, its ro
 square where layouts                 # sq_app/layouts
 square owner ../build.lua            # build.lua  seeded  from template.android.cpp
 square verify                        # what changed since it was written (non-zero if anything)
+square resources kit                 # the kits installed (--resources PATH, $SQUARE_RESOURCES)
+square show kit.terminal             # one of them: what it is, what it needs
 echo '{"sq": 1, "command": "where", "args": {"role": "app"}}' | square call
 ```
 

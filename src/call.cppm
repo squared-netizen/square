@@ -14,10 +14,11 @@ export module square.call;
 import std;
 import sq.data;
 import square.workspace;
+import square.resources;
 
 export namespace square {
 
-inline constexpr std::string_view tool_version = "0.1.0";
+inline constexpr std::string_view tool_version = "0.2.0";
 
 /// What square answers: its commands and their arguments.
 inline JsonValue describe() {
@@ -33,6 +34,8 @@ inline JsonValue describe() {
                          command("where", "{role, workspace?}", "a role's path, relative to the workspace"),
                          command("owner", "{path, workspace?}", "a path's class and origin, and whether it changed"),
                          command("verify", "{workspace?}", "every listed path that changed or went missing"),
+                         command("resources", "{kind?, search?}", "the templates, kits, packages and assets on the search path"),
+                         command("show", "{id, search?}", "one resource (id or id@version): what it is and needs"),
                          command("describe", "{}", "this"),
                      })},
     });
@@ -71,6 +74,12 @@ inline std::optional<std::string> arg(const JsonValue* args, std::string_view na
 /// One command, by name, with its arguments: what both `call` and the words run.
 inline Answer run(std::string_view command, const JsonValue* args, const std::filesystem::path& from) {
     if (command == "describe") return describe();
+    if (command == "resources") return resources(detail::arg(args, "search"), detail::arg(args, "kind"));
+    if (command == "show") {
+        const auto id = detail::arg(args, "id");
+        if (!id) return std::unexpected(Failure{"request.args", "show: args.id, a resource's id"});
+        return show(detail::arg(args, "search"), *id);
+    }
     const auto given = detail::arg(args, "workspace");
     const auto ws = open_workspace(given ? std::optional<std::filesystem::path>(*given) : std::nullopt, from);
     if (!ws) return std::unexpected(ws.error());
@@ -87,7 +96,7 @@ inline Answer run(std::string_view command, const JsonValue* args, const std::fi
         return owner(*ws, *path, from);
     }
     JsonValue::Array known;
-    for (const char* name : {"info", "where", "owner", "verify", "describe"}) known.emplace_back(name);
+    for (const char* name : {"info", "where", "owner", "verify", "resources", "show", "describe"}) known.emplace_back(name);
     return std::unexpected(Failure{"request.command.unknown", std::format("square answers no command {}", command),
                                    JsonValue(JsonValue::Object{{"commands", JsonValue(std::move(known))}})});
 }

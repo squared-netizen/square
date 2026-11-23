@@ -1,7 +1,7 @@
 # squared's data module (sq.data), copied by tools/vendor_squared_data.sh.
 # Do not edit: change it in squared, then copy it again.
-from: squared 39113e6f44816f4fddbbc6441ca3825129141809
-copied: 2026-11-20
+from: squared 14c9090d2d65374137b5d97b959151c0d1d83adb
+copied: 2026-11-18
 31f0e0a9df106349d0c335bf83605e20fb9fd5605a392880449f0d7d7c37e897  ./json.cppm
 836e30a35ded7513528e6a2831f1c4e1ec076e562eb6f2441a1cebe00ce9b361  ./json_value.cppm
 f48a76541c895594dcdd659aa4f63474e6b267fa8506ef1c166dd5123612a3e1  ./module.cppm

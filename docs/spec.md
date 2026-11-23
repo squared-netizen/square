@@ -1,6 +1,6 @@
 # square: specification
 
-**Status: draft 0.1, 2026-11-20.** Nothing here is built yet. It carries the
+**Status: draft 0.1, 2026-11-20;** phase 1 is being built (§8). It carries the
 design of 2026-11-17 ("square: design", decided 2026-11-18) forward and
 brings it into line with the SDK's decisions since: the tool protocol and
 the people/tools split (squared's `docs/developer/sdk-tools.md`), and
@@ -209,7 +209,11 @@ declared.
 ## 8. Phases
 
 1. **Read**: `info`, `where`, `owner`, `verify`, `resources`, `show`, as
-   `call`, `describe`, words and libsquare. Before it, cartridge spec 3.0 and
+   `call`, `describe`, words and libsquare. (Built in 0.2.0, but for
+   libsquare and the sqterm gate. `resources` searches `--resources PATH`,
+   else `$SQUARE_RESOURCES`, else `$PREFIX/share/squared-pg/resources` and
+   `/usr/local/share/squared-pg/resources`, each folder and its
+   `templates/`, `kits/`, `packages/` and `assets/`.) Before it, cartridge spec 3.0 and
    sqterm's workspace converted to an exploded cartridge. Gate: sqterm's
    workspace answers every question correctly, and `verify` reports a file
    edited on purpose.

@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
 //
-// square.sha256: SHA-256 (FIPS 180-4), for the provenance table's checksums
-// (sha256sum's). sqmake's copy, from sqcart's (v3/src/sha256.cppm): the
-// incremental hash alone.
+// sq.cart:sha256 — SHA-256 (FIPS 180-4), every digest format 3.0 uses
+// (Appendix B.1), and the entry digest built from it: a tree over 1 MiB
+// leaves (§9.1).
 
-export module square.sha256;
+export module sq.cart:sha256;
 
 import std;
 
-export namespace square {
+export namespace sq::cart {
 
 using Digest = std::array<std::byte, 32>;
+
+/// The size of a chunk, and of a leaf of the entry digest's tree (§4.5,
+/// §9.1, Appendix B.1).
+inline constexpr std::uint64_t chunk_size = std::uint64_t{1} << 20;
 
 /// Incremental SHA-256.
 class Sha256 {
@@ -82,6 +86,35 @@ private:
     std::uint64_t total_ = 0;
 };
 
+[[nodiscard]] inline Digest sha256(std::span<const std::byte> bytes) noexcept {
+    Sha256 h;
+    h.update(bytes);
+    return h.finish();
+}
+
+/// §9.1 from the leaves: SHA-256 of "squared-tree/1", a zero byte, the
+/// size as a little-endian u64, and the leaf hashes in order.
+[[nodiscard]] inline Digest tree_hash_from_leaves(std::span<const Digest> leaves, std::uint64_t size) noexcept {
+    Sha256 h;
+    h.update(std::string_view("squared-tree/1\0", 15));
+    std::array<std::byte, 8> le{};
+    for (std::size_t i = 0; i < 8; ++i) le[i] = static_cast<std::byte>(size >> (8 * i));
+    h.update(le);
+    for (const Digest& leaf : leaves) h.update(leaf);
+    return h.finish();
+}
+
+/// The entry digest of §9.1: SHA-256 of content up to 1 MiB (what
+/// sha256sum prints), else the tree over 1 MiB leaves.
+[[nodiscard]] inline Digest tree_hash(std::span<const std::byte> content) noexcept {
+    if (content.size() <= chunk_size) return sha256(content);
+    std::vector<Digest> leaves;
+    for (std::size_t at = 0; at < content.size(); at += chunk_size) {
+        leaves.push_back(sha256(content.subspan(at, std::min<std::size_t>(chunk_size, content.size() - at))));
+    }
+    return tree_hash_from_leaves(leaves, content.size());
+}
+
 /// 64 lowercase hex digits.
 [[nodiscard]] inline std::string to_hex(std::span<const std::byte> bytes) {
     std::string out;
@@ -89,12 +122,4 @@ private:
     return out;
 }
 
-/// The SHA-256 of a text, as hex.
-[[nodiscard]] inline std::string sha256_hex(std::string_view text) {
-    Sha256 h;
-    h.update(text);
-    const Digest d = h.finish();
-    return to_hex(d);
-}
-
-}  // namespace square
+}  // namespace sq::cart

@@ -4,11 +4,15 @@
 // (docs/spec.md §2, §3: phase 1, read).
 //
 // A workspace is a folder holding SQ-INF/manifest.json with kind
-// "workspace": an exploded cartridge (§2). Its manifest says what it was made
+// "workspace": an exploded cartridge (§2), its manifest read by sq.cart as
+// the cartridge format asks (format, format_version 3, id, version, kind). Its manifest says what it was made
 // from and where its parts are (consumers.square); SQ-INF/files.json, the
 // provenance table, says for each path a template, kit or package wrote its
 // class, origin and sha256 as written (§2.2, §9). square reads both and the
-// files themselves, and writes nothing in this phase.
+// files themselves, and writes nothing in this phase. It reads them as
+// files, not by opening the whole folder as a cartridge: a workspace holds
+// build output and links a cartridge may not, and square answers about the
+// paths the table lists, not every file under the root.
 //
 // Every question answers a sq::data::JsonValue, or a Failure with a dotted
 // code a tool can act on (§5): the words people see and the calls programs
@@ -18,7 +22,7 @@ export module square.workspace;
 
 import std;
 import sq.data;
-import square.sha256;
+import sq.cart;
 
 export namespace square {
 
@@ -60,12 +64,13 @@ inline const JsonValue* square_section(const JsonValue& manifest) {
     return consumers != nullptr ? consumers->find("square") : nullptr;
 }
 
-/// Whether `dir` holds a workspace's manifest.
-inline bool is_workspace(const std::filesystem::path& dir) {
+/// `dir`'s manifest, as sq.cart reads one, when it is a workspace's.
+inline std::optional<sq::cart::Manifest> workspace_manifest(const std::filesystem::path& dir) {
     const auto text = read_text(dir / "SQ-INF" / "manifest.json");
-    if (!text) return false;
-    const auto parsed = sq::data::parse_json(*text);
-    return parsed && text_of(parsed.value.find("kind")) == "workspace";
+    if (!text) return std::nullopt;
+    auto manifest = sq::cart::parse_manifest(*text);
+    if (!manifest || manifest->kind != "workspace") return std::nullopt;
+    return std::move(*manifest);
 }
 
 }  // namespace detail
@@ -79,7 +84,7 @@ inline std::expected<Workspace, Failure> open_workspace(const std::optional<std:
     std::filesystem::path root;
     if (given) {
         root = std::filesystem::weakly_canonical(*given, ec);
-        if (ec || !detail::is_workspace(root)) {
+        if (ec || !detail::workspace_manifest(root)) {
             return std::unexpected(Failure{"workspace.not_found",
                                            std::format("{} is not a workspace (no SQ-INF/manifest.json of kind workspace)",
                                                        given->string()),
@@ -88,7 +93,7 @@ inline std::expected<Workspace, Failure> open_workspace(const std::optional<std:
     } else {
         std::filesystem::path here = std::filesystem::weakly_canonical(start, ec);
         for (;;) {
-            if (detail::is_workspace(here)) {
+            if (detail::workspace_manifest(here)) {
                 root = here;
                 break;
             }
@@ -102,8 +107,12 @@ inline std::expected<Workspace, Failure> open_workspace(const std::optional<std:
     }
     Workspace ws;
     ws.root = root;
-    const auto manifest = sq::data::parse_json(*detail::read_text(root / "SQ-INF" / "manifest.json"));
-    ws.manifest = manifest.value;
+    const auto manifest = detail::workspace_manifest(root);
+    if (!manifest) {
+        return std::unexpected(Failure{"workspace.manifest.invalid", "SQ-INF/manifest.json changed while it was read",
+                                       JsonValue(JsonValue::Object{})});
+    }
+    ws.manifest = sq::data::parse_json(manifest->json).value;
     if (const auto text = detail::read_text(root / "SQ-INF" / "files.json")) {
         const auto files = sq::data::parse_json(*text);
         if (!files || files.value.object_if() == nullptr) {
@@ -165,10 +174,18 @@ inline std::optional<std::string> workspace_path(const Workspace& ws, std::strin
     return rel.generic_string();
 }
 
+/// A file's SHA-256 (what sha256sum prints), read in pieces.
 inline std::optional<std::string> file_sha256(const std::filesystem::path& path) {
-    const auto text = read_text(path);
-    if (!text) return std::nullopt;
-    return sha256_hex(*text);
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return std::nullopt;
+    sq::cart::Sha256 hash;
+    std::array<char, 65536> buffer{};
+    while (in) {
+        in.read(buffer.data(), buffer.size());
+        hash.update(std::string_view(buffer.data(), static_cast<std::size_t>(in.gcount())));
+    }
+    if (in.bad()) return std::nullopt;
+    return sq::cart::to_hex(hash.finish());
 }
 
 }  // namespace detail
