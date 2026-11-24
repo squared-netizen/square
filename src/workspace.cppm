@@ -219,10 +219,12 @@ inline Answer owner(const Workspace& ws, std::string_view path, const std::files
 
 /// Every path the provenance table lists that changed or went missing since
 /// it was written, and which of them an update would overwrite (generated
-/// ones; seeded and user files are the developer's and never touched).
+/// ones; seeded and user files are the developer's and never touched). A
+/// conflict is a generated file changed or gone: what an update would undo.
+/// A seeded file the developer edited is reported, and is no conflict.
 inline Answer verify(const Workspace& ws) {
     JsonValue::Array findings;
-    std::int64_t checked = 0;
+    std::int64_t checked = 0, conflicts = 0;
     if (const JsonValue::Object* files = ws.files.object_if()) {
         for (const auto& [path, entry] : *files) {
             ++checked;
@@ -230,17 +232,21 @@ inline Answer verify(const Workspace& ws) {
             const auto now = detail::file_sha256(ws.root / path);
             const char* state = !now ? "missing" : *now != detail::text_of(entry.find("sha256")) ? "changed" : nullptr;
             if (state == nullptr) continue;
+            const bool conflict = cls == "generated";
+            if (conflict) ++conflicts;
             findings.emplace_back(JsonValue::Object{
                 {"path", JsonValue(path)},
                 {"state", JsonValue(state)},
                 {"class", JsonValue(cls)},
                 {"origin", JsonValue(detail::text_of(entry.find("origin")))},
                 {"update_overwrites", JsonValue(cls == "generated")},
+                {"conflict", JsonValue(conflict)},
             });
         }
     }
     return JsonValue(JsonValue::Object{{"workspace", JsonValue(ws.root.string())},
                                        {"checked", JsonValue(checked)},
+                                       {"conflicts", JsonValue(conflicts)},
                                        {"findings", JsonValue(std::move(findings))}});
 }
 
