@@ -121,25 +121,31 @@ workspace, not knowledge inside sqmake or square:
 
 ```lua
 -- build.lua: seeded, the developer's. The template wrote it once.
-include("sq/build/template.lua")   -- the template's conventions: squared, the app, the APK
-include("sq/build/kits.lua")       -- one line per kit, kept by square (generated)
+app = {name = "hello"}              -- what is the app's own
+include("sq/build/template.lua")   -- the template's conventions, and every kit's
 
--- The developer's own additions, if any:
--- toolchain.cxxflags = {"-O3"}
+-- The developer's own additions, if any (after the include, theirs win):
+-- verb("run", {...})
 ```
 
 - **`sq/build/template.lua`** (generated) is the template's build: for
-  template.android.cpp, `toolchain.sdk("squared/build/toolchain.sh")`,
-  squared's modules, the app's modules from the `app` role, the native
-  library, and the APK through apkpack. An update of the template replaces
-  it; the developer's `build.lua` is untouched.
-- **`sq/build/kits.lua`** (generated) includes each kit's own
-  `sq/build/kit_<id>.lua`; `square add` and `update` rewrite it and the kit's
-  file, never `build.lua`.
-- **sqmake needs one more function for this**: `include(path)`, which runs
-  another Lua file of the workspace in the same sandboxed environment.
-  sqmake's phase 3 adds it. With it, phase 3 needs no `project{...}`
-  built into sqmake: the convention is the template's Lua file.
+  template.android.cpp, `toolchain.sdk(...)`, squared's modules, the app's
+  sources, the native library, and the APK through apkpack; for the
+  terminal templates, the program, `run` and `test`. An update of the
+  template replaces it; the developer's `build.lua` is untouched.
+- **Kits: `sq/build/kit_<name>.lua`** (generated), one per kit, each
+  returning what the kit adds, `{id, flags, link, srcs}`. The template's
+  file includes every `sq/build/kit_*.lua` (in the order of their names)
+  and adds them. `square add` and `update` write and replace the kit's own
+  file, and `remove` deletes it: never `build.lua` or the template's.
+  (Decided 2026-11-24, in place of a `sq/build/kits.lua` square kept: one
+  file per kit is one file to add, replace or delete, and nothing to keep
+  in step.) A kit says it writes one through the integration area
+  `build.lua.fragments`, which each template declares (multi).
+- **sqmake's `include(path)`** runs another Lua file of the workspace in
+  the same sandboxed environment and returns what it returns (sqmake 0.8).
+  With it, sqmake needs no `project{...}` built in: the convention is the
+  template's Lua file.
 
 This keeps sqmake knowing nothing of workspaces, square knowing nothing of how
 a build runs, and the developer able to read and change every rule that
@@ -190,8 +196,8 @@ square describe
 
 squared-pg's engine writes the files (instantiation and parameters exist once,
 there); square decides. A kit that changes the build adds its
-`sq/build/kit_<id>.lua` and a line in `sq/build/kits.lua`, both generated.
-It never edits `build.lua`.
+`sq/build/kit_<name>.lua`, generated, which the template's build includes
+with every other (§4). It never edits `build.lua`.
 
 ## 7. Extraction (decided)
 
@@ -219,7 +225,10 @@ declared.
    edited on purpose.
 2. **Build conventions**: `sq/build/template.lua` for template.android.cpp,
    with sqmake's `include()`. Gate: sqterm builds and installs with
-   `sqmake`, and with no make.
+   `sqmake`, and with no make. (Met, 2026-11-24: sqterm and the apps sqpg
+   makes build and install with sqmake on the phone; every template has its
+   `sq/build/template.lua` and each kit its `sq/build/kit_<name>.lua`,
+   squared #37.)
 3. **Explain**: once dexgen's description file exists.
 4. **Change**: `add`, `update`, the journal. Gate: a kit added to a copy of
    sqterm, a crash forced mid-apply, and the next run rolls it back cleanly.
