@@ -8,6 +8,8 @@
 //   square where ROLE                 a role's path: app, android, layouts, ...
 //   square owner PATH                 a path's class, origin, and whether it changed
 //   square verify                     what changed since it was written
+//   square roles                      each role: its path, its files and their class
+//   square find [DIR]                 the workspaces under DIR (here): exploded or .sq
 //   square resources [KIND]           templates, kits, packages and assets found
 //   square show ID[@VERSION]          one of them: what it is and needs
 //   square call < REQUEST.json        one request, one response (the SDK's protocol)
@@ -32,6 +34,8 @@ int usage(std::FILE* out = stderr, int status = 2) {
                  "       square [--workspace DIR] [--json] where ROLE\n"
                  "       square [--workspace DIR] [--json] owner PATH\n"
                  "       square [--workspace DIR] [--json] verify\n"
+                 "       square [--workspace DIR] [--json] roles\n"
+                 "       square [--json] find [DIR]\n"
                  "       square [--resources PATH] [--json] resources [KIND]\n"
                  "       square [--resources PATH] [--json] show ID[@VERSION]\n"
                  "       square call < REQUEST.json\n"
@@ -93,6 +97,38 @@ void say(std::string_view command, const sq::data::JsonValue& r) {
             } else {
                 // The developer's: edited or removed on purpose, as seeded means.
                 std::println("{:<8} {}  ({}: yours)", state == "changed" ? "edited" : state, text(f.find("path")), cls);
+            }
+        }
+    } else if (command == "roles") {
+        const sq::data::JsonValue* roles = r.find("roles");
+        if (roles == nullptr || roles->object_if() == nullptr || roles->object_if()->empty()) {
+            std::println("no roles (the workspace's manifest names none)");
+            return;
+        }
+        for (const auto& [role, entry] : *roles->object_if()) {
+            const sq::data::JsonValue* files = entry.find("files");
+            const std::size_t count = files != nullptr && files->array_if() != nullptr ? files->array_if()->size() : 0;
+            const std::string form = text(entry.find("form"));
+            const sq::data::JsonValue* cut = entry.find("truncated");
+            const bool truncated = cut != nullptr && cut->boolean_if() != nullptr && *cut->boolean_if();
+            std::println("{:<10} {:<24} {}", role, text(entry.find("path")),
+                         form == "missing" ? std::string("(not there)")
+                                           : std::format("{} file{}{}", count, count == 1 ? "" : "s",
+                                                         truncated ? " (and more)" : ""));
+        }
+    } else if (command == "find") {
+        const sq::data::JsonValue* list = r.find("workspaces");
+        if (list == nullptr || list->array_if() == nullptr || list->array_if()->empty()) {
+            std::println("no workspaces under {}", text(r.find("folder")));
+        } else {
+            for (const auto& w : *list->array_if()) {
+                std::println("{:<10} {:<24} {:<9} {}", text(w.find("form")), text(w.find("id")), text(w.find("version")),
+                             text(w.find("path")));
+            }
+        }
+        if (const sq::data::JsonValue* problems = r.find("problems"); problems != nullptr && problems->array_if() != nullptr) {
+            for (const auto& p : *problems->array_if()) {
+                std::println(stderr, "square: could not read {}: {}", text(p.find("path")), text(p.find("message")));
             }
         }
     } else if (command == "resources") {
@@ -175,9 +211,9 @@ int main(int argc, char** argv) {
     if (command == "where" || command == "owner" || command == "show") {
         if (words.size() != 2) return usage();
         request_args.emplace(command == "where" ? "role" : command == "owner" ? "path" : "id", sq::data::JsonValue(words[1]));
-    } else if (command == "resources") {
+    } else if (command == "resources" || command == "find") {
         if (words.size() > 2) return usage();
-        if (words.size() == 2) request_args.emplace("kind", sq::data::JsonValue(words[1]));
+        if (words.size() == 2) request_args.emplace(command == "find" ? "dir" : "kind", sq::data::JsonValue(words[1]));
     } else if (words.size() != 1) {
         return usage();
     }
