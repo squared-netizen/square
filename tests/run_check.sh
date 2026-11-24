@@ -77,6 +77,36 @@ grep -q '"code":"request.command.unknown"' <<< "$resp" || die "call, unknown com
 "$square" describe | grep -q '"tool": "square"' || die "describe"
 ok "call: the SDK's protocol, its answers and its error codes; describe"
 
+# roles: each role's path, whether it is there, its files and their class.
+mkdir -p "$ws/sq_app/layouts"
+printf '{}\n' > "$ws/sq_app/layouts/main.json"
+out=$(cd "$ws" && "$square" roles)
+grep -q '^app  *sq_app  *2 files$' <<< "$out" && grep -q '^layouts  *sq_app/layouts  *1 file$' <<< "$out" &&
+    grep -q '^build  *build  *(not there)$' <<< "$out" || die "roles: $out"
+out=$(cd "$ws" && "$square" --json roles)
+grep -q '"path": "sq_app/src/main.cpp"' <<< "$out" && grep -q '"class": "user"' <<< "$out" &&
+    grep -q '"form": "missing"' <<< "$out" || die "roles --json: $out"
+ok "roles: each role's files and their class; a role not there says so"
+
+# find: the workspaces under a folder, newest first; not inside one; a .sq
+# that is not a cartridge reported, not fatal.
+mkdir -p "$work/all/older" "$work/all/.hidden/ws" "$work/all/deep/a/b/c/d"
+cp -r "$ws" "$work/all/older/one"
+cp -r "$ws" "$work/all/two"
+cp -r "$ws" "$work/all/.hidden/ws/three"
+cp -r "$ws" "$work/all/deep/a/b/c/d/four"
+cp -r "$ws" "$work/all/two/sq_app/nested"   # inside a workspace: the workspace's
+touch -d '2020-01-01' "$work/all/older/one/SQ-INF/manifest.json"
+printf 'not a cartridge' > "$work/all/broken.sq"
+out=$("$square" find "$work/all" 2> "$work/err.txt")
+[ "$(grep -c '^exploded' <<< "$out")" = 2 ] || die "find: two workspaces (not hidden, not too deep, not nested): $out"
+[ "$(head -n 1 <<< "$out" | grep -c '/all/two$')" = 1 ] || die "find: newest first: $out"
+grep -q 'could not read .*broken.sq' "$work/err.txt" || die "find: a broken .sq not reported"
+[ "$(cd "$ws" && "$square" find | grep -c '^exploded')" = 1 ] || die "find in a workspace: itself"
+"$square" --json find "$work/all" 2> /dev/null | grep -q '"template": "template.android.cpp@0.1.0"' || die "find --json"
+! "$square" find "$work/none" 2> /dev/null || die "find: not a folder"
+ok "find: newest first; hidden, too deep and nested left out; a broken .sq reported"
+
 # Resources: cartridges on a search path, in it or in templates/, kits/ ...
 res=$work/resources
 cart() {  # cart DIR KIND ID VERSION TITLE [EXTRA-JSON]

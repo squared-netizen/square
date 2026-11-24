@@ -31,7 +31,7 @@ STD_CPPM     ?= $(if $(filter /%,$(STD_SOURCE)),$(STD_SOURCE),$(if $(STD_SOURCE)
 
 # Reading only: sq.cart (with std, sq.data and yyjson) and zstd's decoder.
 CART_LIBS := $(CART_B)/libsqcart.a $(CART_B)/libsqcart-unzstd.a
-MODULES   := workspace resources call
+MODULES   := workspace resources survey call
 OBJS      := $(MODULES:%=$(BUILD)/obj/%.o)
 LIB       := $(BUILD)/libsquare.a
 
@@ -52,7 +52,8 @@ $(BUILD)/pcm/square.$(1).pcm $(BUILD)/obj/$(1).o &: src/$(1).cppm $(CART_B)/pcm/
 endef
 $(eval $(call unit,workspace,))
 $(eval $(call unit,resources,$(BUILD)/pcm/square.workspace.pcm))
-$(eval $(call unit,call,$(BUILD)/pcm/square.workspace.pcm $(BUILD)/pcm/square.resources.pcm))
+$(eval $(call unit,survey,$(BUILD)/pcm/square.workspace.pcm))
+$(eval $(call unit,call,$(BUILD)/pcm/square.workspace.pcm $(BUILD)/pcm/square.resources.pcm $(BUILD)/pcm/square.survey.pcm))
 
 # libsquare's one module, square, which re-exports the three.
 $(BUILD)/pcm/square.pcm $(BUILD)/obj/square.o &: src/square.cppm $(MODULES:%=$(BUILD)/pcm/square.%.pcm)

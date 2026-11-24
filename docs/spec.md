@@ -99,6 +99,8 @@ the workspace, so an answer stays right on another machine.
 | `where` (`role`) | a role's path: app, android, assets, layouts, build, docs | `roles` |
 | `owner` (`path`) | a path's class and origin, and whether it changed since it was written | `files`, the file's sha256 |
 | `verify` | every generated or seeded path that changed, and what an update would overwrite | `files`, the tree |
+| `roles` | each role: its path, whether it is there, the files under it and each one's class (unlisted: `user`) | `roles`, `files`, the tree |
+| `find` (`dir`) | the workspaces under a folder, exploded or `.sq`, newest first, as cards (path, form, id, title, version, template, modified); hidden folders, `build/` and a workspace's inside are not looked in, nor deeper than 4 | the folders, each `SQ-INF/manifest.json`; `.sq` files through sqcart |
 | `resources` | the templates, kits and packages that can be added, with versions | installed cartridges, through sqcart |
 | `show` (`id`) | one resource's manifest: description, version, dependencies, files | that cartridge, through sqcart |
 | `explain` (`shim`) | a dex shim's description, bytecode, spec references, its Java equivalent | dexgen's description file |
