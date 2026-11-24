@@ -86,8 +86,14 @@ void say(std::string_view command, const sq::data::JsonValue& r) {
         for (const auto& f : *list) {
             const sq::data::JsonValue* overwrites = f.find("update_overwrites");
             const bool generated = overwrites != nullptr && overwrites->boolean_if() != nullptr && *overwrites->boolean_if();
-            std::println("{:<8} {}  ({}{})", text(f.find("state")), text(f.find("path")), text(f.find("class")),
-                         generated ? "; an update would overwrite it" : "");
+            const std::string state = text(f.find("state"));
+            const std::string cls = text(f.find("class"));
+            if (generated) {
+                std::println("{:<8} {}  ({}; an update would overwrite it)", state, text(f.find("path")), cls);
+            } else {
+                // The developer's: edited or removed on purpose, as seeded means.
+                std::println("{:<8} {}  ({}: yours)", state == "changed" ? "edited" : state, text(f.find("path")), cls);
+            }
         }
     } else if (command == "resources") {
         const sq::data::JsonValue* list = r.find("resources");
@@ -187,10 +193,14 @@ int main(int argc, char** argv) {
     } else {
         say(command, *answer);
     }
-    // verify composes into a check: non-zero when something changed.
+    // verify composes into a check: non-zero when a generated file changed
+    // or went missing (what an update would undo), not for the developer's
+    // own edits to seeded files.
     if (command == "verify") {
-        const sq::data::JsonValue* findings = answer->find("findings");
-        return findings != nullptr && findings->array_if() != nullptr && !findings->array_if()->empty() ? 1 : 0;
+        const sq::data::JsonValue* conflicts = answer->find("conflicts");
+        const auto* n = conflicts != nullptr ? conflicts->signed_integer_if() : nullptr;
+        const auto* u = conflicts != nullptr ? conflicts->unsigned_integer_if() : nullptr;
+        return (n != nullptr && *n > 0) || (u != nullptr && *u > 0) ? 1 : 0;
     }
     return 0;
 }

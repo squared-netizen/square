@@ -51,13 +51,17 @@ ok "where: a role's path, an unknown role refused"
 ok "owner: class and origin from the table; the developer's own; outside refused"
 
 (cd "$ws" && "$square" verify) | grep -q 'nothing changed' || die "verify, unchanged"
+# A seeded file the developer edits is theirs: reported, and no failure.
+printf 'mine\n' >> "$ws/build.lua"
+out=$(cd "$ws" && "$square" verify) || die "verify failed on a seeded file edited"
+grep -q 'edited   build.lua  (seeded: yours)' <<< "$out" || die "verify: a seeded edit: $out"
 printf 'edited\n' >> "$ws/mk/gen.mk"
 rm "$ws/build.lua"
 out=$(cd "$ws" && "$square" verify) && die "verify with changes exited 0"
 grep -q 'changed  mk/gen.mk  (generated; an update would overwrite it)' <<< "$out" || die "verify: a changed generated file"
-grep -q 'missing  build.lua  (seeded)' <<< "$out" || die "verify: a missing seeded file"
+grep -q 'missing  build.lua  (seeded: yours)' <<< "$out" || die "verify: a missing seeded file"
 (cd "$ws" && "$square" owner mk/gen.mk) | grep -q '(changed since written)' || die "owner: changed"
-ok "verify: changed and missing, what an update would overwrite, non-zero"
+ok "verify: a seeded edit is yours (exit 0); a generated change fails, with what an update would overwrite"
 
 resp=$(cd "$ws" && printf '{"sq": 1, "command": "where", "args": {"role": "app"}}' | "$square" call)
 [ "$resp" = '{"ok":true,"result":{"path":"sq_app","role":"app"},"sq":1}' ] || die "call where: $resp"
