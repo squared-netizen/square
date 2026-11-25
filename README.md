@@ -25,6 +25,8 @@ square owner ../build.lua            # build.lua  seeded  from template.android.
 square verify                        # what changed since it was written (non-zero if anything)
 square roles                         # each role: its path, its files and their class
 square find ~                        # the workspaces under a folder, exploded or .sq, newest first
+square pack                          # this workspace into one .sq to share (build/ left out)
+square explode demo.sq ~/work        # a .sq workspace out as ~/work/demo
 square resources kit                 # the kits installed (--resources PATH, $SQUARE_RESOURCES)
 square show kit.terminal             # one of them: what it is, what it needs
 echo '{"sq": 1, "command": "where", "args": {"role": "app"}}' | square call

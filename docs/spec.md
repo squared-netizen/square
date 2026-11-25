@@ -100,6 +100,8 @@ the workspace, so an answer stays right on another machine.
 | `owner` (`path`) | a path's class and origin, and whether it changed since it was written | `files`, the file's sha256 |
 | `verify` | every generated or seeded path that changed, and what an update would overwrite | `files`, the tree |
 | `roles` | each role: its path, whether it is there, the files under it and each one's class (unlisted: `user`) | `roles`, `files`, the tree |
+| `pack` (`out`) | the workspace into a new `.sq` (beside it as ID-VERSION.sq by default): sqcart's exploded form, `build/` and the build role's folder left out, dot folders too (`.git/`, `.squared/`); no file held whole. Through sqdrive (`sq::drive::pack`), never sqcart directly | the tree, through sqdrive |
+| `explode` (`cartridge`, `into`) | a `.sq` of kind workspace written out as a folder, `into`/NAME (NAME: the id's last part), every byte verified; refuses another kind, and a folder that is there | the cartridge, through sqdrive |
 | `find` (`dir`) | the workspaces under a folder, exploded or `.sq`, newest first, as cards (path, form, id, title, version, template, modified); hidden folders, `build/` and a workspace's inside are not looked in, nor deeper than 4 | the folders, each `SQ-INF/manifest.json`; `.sq` files through sqcart |
 | `resources` | the templates, kits and packages that can be added, with versions | installed cartridges, through sqcart |
 | `show` (`id`) | one resource's manifest: description, version, dependencies, files | that cartridge, through sqcart |

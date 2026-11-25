@@ -15,6 +15,7 @@ module;
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
+#include <stdio.h>  // renameat
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -84,16 +85,52 @@ Result<Fd> open_folder(int root, std::string_view rel, const std::string& entry)
     return at;
 }
 
+Result<void> write_all(int fd, std::span<const std::byte> bytes, const std::string& name, const std::string& entry) {
+    std::size_t done = 0;
+    while (done < bytes.size()) {
+        const ssize_t n = ::write(fd, bytes.data() + done, bytes.size() - done);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return fail(Code::io, std::format("cannot write {}: {}", name, std::strerror(errno)), entry);
+        done += static_cast<std::size_t>(n);
+    }
+    return {};
+}
+
 Result<void> write_new(int folder, const std::string& name, std::span<const std::byte> bytes, const std::string& entry,
                        ::mode_t mode = 0644) {
     Fd fd(::openat(folder, name.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode));
     if (!fd.ok()) return fail(Code::io, std::format("cannot create {}: {}", name, std::strerror(errno)), entry);
-    std::size_t done = 0;
-    while (done < bytes.size()) {
-        const ssize_t n = ::write(fd.get(), bytes.data() + done, bytes.size() - done);
-        if (n < 0 && errno == EINTR) continue;
-        if (n <= 0) return fail(Code::io, std::format("cannot write {}: {}", name, std::strerror(errno)), entry);
-        done += static_cast<std::size_t>(n);
+    return write_all(fd.get(), bytes, name, entry);
+}
+
+/// An entry into a new file, read and verified a chunk at a time when it is
+/// chunked (codec 3: never held whole, so a large asset unpacks on a
+/// phone), else read whole (64 MiB at most) and verified before it is written.
+Result<void> write_entry(const Archive& cart, const Entry& e, int folder, const std::string& name, ::mode_t mode) {
+    if (e.codec != Codec::chunked) {
+        auto bytes = cart.read(e);
+        if (!bytes) return std::unexpected(bytes.error());
+        return write_new(folder, name, *bytes, e.path, mode);
+    }
+    // Into NAME.part, renamed to NAME once every chunk has been verified: a
+    // damaged chunk leaves no file that looks whole.
+    if (::faccessat(folder, name.c_str(), F_OK, AT_SYMLINK_NOFOLLOW) == 0) {
+        return fail(Code::io, std::format("cannot create {}: {}", name, std::strerror(EEXIST)), e.path);
+    }
+    const std::string part = name + ".part";
+    Fd fd(::openat(folder, part.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode));
+    if (!fd.ok()) return fail(Code::io, std::format("cannot create {}: {}", part, std::strerror(errno)), e.path);
+    const auto give_up = [&](Error error) {
+        ::unlinkat(folder, part.c_str(), 0);
+        return std::unexpected(std::move(error));
+    };
+    for (std::uint64_t at = 0; at < e.size; at += chunk_size) {
+        auto bytes = cart.read_range(e, at, std::min<std::uint64_t>(chunk_size, e.size - at));
+        if (!bytes) return give_up(bytes.error());
+        if (auto r = write_all(fd.get(), *bytes, name, e.path); !r) return give_up(r.error());
+    }
+    if (::renameat(folder, part.c_str(), folder, name.c_str()) != 0) {
+        return give_up(Error{Code::io, std::format("cannot rename {}: {}", part, std::strerror(errno)), e.path});
     }
     return {};
 }
@@ -372,13 +409,11 @@ struct UnpackOptions {
     data::JsonValue::Object metadata;
     std::size_t written = 0;
     for (const Entry& e : *live) {
-        auto bytes = cart.read(e);
-        if (!bytes) return std::unexpected(bytes.error());
         const std::size_t slash = e.path.rfind('/');
         auto folder = open_folder(root.get(), slash == std::string::npos ? std::string_view() : std::string_view(e.path).substr(0, slash), e.path);
         if (!folder) return std::unexpected(folder.error());
         const ::mode_t mode = options.executable && (e.flags & flag::x) ? 0755 : 0644;
-        if (auto r = write_new(folder->get(), e.path.substr(slash == std::string::npos ? 0 : slash + 1), *bytes, e.path, mode); !r) {
+        if (auto r = write_entry(cart, e, folder->get(), e.path.substr(slash == std::string::npos ? 0 : slash + 1), mode); !r) {
             return std::unexpected(r.error());
         }
         if (auto m = exploded_metadata(e)) metadata.emplace(e.path, std::move(*m));
