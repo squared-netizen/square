@@ -1,5 +1,6 @@
 # Builds square with clang and libc++ 23 (the SDK's toolchain, from
-# apt.llvm.org) and runs make test: tests/run_check.sh, square's commands on
+# apt.llvm.org) and sqmake (bootstrapped from its source: no make), and runs
+# sqmake test: tests/run_check.sh, square's commands on
 # a workspace made as sqpg makes one.
 name: test
 
@@ -24,7 +25,18 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends clang-23 lld-23 llvm-23 libc++-23-dev libc++abi-23-dev
           echo "/usr/lib/llvm-23/bin" >> "$GITHUB_PATH"
-      - name: make test
+      - name: sqmake, from its source (tools/bootstrap.sh)
+        env:
+          CXX: clang++
+          CC: clang
+        run: |
+          git clone --depth 1 https://github.com/squared-netizen/sqmake "$RUNNER_TEMP/sqmake"
+          (cd "$RUNNER_TEMP/sqmake" && sh tools/bootstrap.sh)
+          echo "$RUNNER_TEMP/sqmake/build" >> "$GITHUB_PATH"
+      - name: sqmake test
+        env:
+          CXX: clang++
+          CC: clang
         run: |
           clang++ --version | head -n 1
-          make -j4 test CXX=clang++ CC=clang
+          sqmake test
