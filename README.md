@@ -11,13 +11,13 @@ the workspaces sqpg writes and the cartridges it installs; and every
 template and kit builds with sqmake from Lua in the workspace
 (`sq/build/template.lua`, `sq/build/kit_<name>.lua`: spec §4).
 Manifests are read through sqcart (vendored in `third_party/sqcart`).
-libsquare (`make lib`: `build/libsquare.a` and the module `square`) gives
+libsquare (`build/libsquare.a` and the module `square`, built by `sqmake`) gives
 sqpg and sqgui the same calls in process. Next: changing a workspace
 (`add`, `update`, phase 4). [docs/spec.md](docs/spec.md),
 draft 0.1 (2026-11-20).
 
 ```sh
-make CXX=clang++ && make test       # clang and libc++ 23, `import std`
+CXX=clang++ sqmake test             # clang and libc++ 23, `import std` (build.lua)
 cd my-workspace/sq_app
 square info                          # what it is, what it was made from, its roles
 square where layouts                 # sq_app/layouts
