@@ -20,7 +20,7 @@ import square.cartridge;
 
 export namespace square {
 
-inline constexpr std::string_view tool_version = "0.5.0";
+inline constexpr std::string_view tool_version = "0.5.1";
 
 /// What square answers: its commands and their arguments.
 inline JsonValue describe() {
