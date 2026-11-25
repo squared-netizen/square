@@ -154,6 +154,16 @@ SQUARE_RESOURCES=$res "$square" resources kit 2>/dev/null | grep -q template && 
 SQUARE_RESOURCES=$res "$square" --json resources 2>/dev/null | grep -q '"id": "kit.demo"' || die "resources from \$SQUARE_RESOURCES"
 ok "resources: found on the search path, by kind; one sq.cart refuses is reported, not fatal"
 
+# Your own resources: $XDG_DATA_HOME/squared-pg/resources (else
+# ~/.local/share), where `sqmake install` puts what an authoring workspace makes.
+cart "$work/data/squared-pg/resources/templates/template.mine" template template.mine 0.1.0 "Mine"
+cart "$work/home/.local/share/squared-pg/resources/kits/kit.mine" kit kit.mine 0.1.0 "My kit"
+env -u SQUARE_RESOURCES XDG_DATA_HOME="$work/data" "$square" resources 2>/dev/null | grep -q 'template.mine' ||
+    die "resources: \$XDG_DATA_HOME/squared-pg/resources not searched"
+env -u SQUARE_RESOURCES -u XDG_DATA_HOME HOME="$work/home" "$square" resources 2>/dev/null | grep -q 'kit.mine' ||
+    die "resources: ~/.local/share/squared-pg/resources not searched"
+ok "resources: your own, in \$XDG_DATA_HOME (or ~/.local/share)/squared-pg/resources"
+
 out=$("$square" --resources "$res" show template.demo)
 grep -q 'Made for the check.' <<< "$out" && grep -q 'package.core' <<< "$out" && grep -q 'files     2' <<< "$out" ||
     die "show: $out"

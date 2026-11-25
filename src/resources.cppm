@@ -11,6 +11,10 @@
 //
 //   args.search / --resources PATH[:PATH...]
 //   $SQUARE_RESOURCES         PATH[:PATH...]
+//   ${XDG_DATA_HOME:-~/.local/share}/squared-pg/resources   (your own: what
+//                             `sqmake install` puts there from a workspace
+//                             made with template.kit, .package or .template;
+//                             sqpg searches it too)
 //   $PREFIX/share/squared-pg/resources     (sqterm's prefix)
 //   /usr/local/share/squared-pg/resources
 //
@@ -39,6 +43,11 @@ inline std::vector<std::filesystem::path> resource_path(const std::optional<std:
     } else if (const char* env = std::getenv("SQUARE_RESOURCES"); env != nullptr && *env != '\0') {
         add_list(env);
     } else {
+        if (const char* xdg = std::getenv("XDG_DATA_HOME"); xdg != nullptr && *xdg != '\0') {
+            words.push_back(std::string(xdg) + "/squared-pg/resources");
+        } else if (const char* home = std::getenv("HOME"); home != nullptr && *home != '\0') {
+            words.push_back(std::string(home) + "/.local/share/squared-pg/resources");
+        }
         if (const char* prefix = std::getenv("PREFIX"); prefix != nullptr && *prefix != '\0') {
             words.push_back(std::string(prefix) + "/share/squared-pg/resources");
         }
