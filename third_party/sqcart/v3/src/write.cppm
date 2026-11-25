@@ -891,13 +891,18 @@ struct PackOptions {
     /// name (".git", for a backup). Every other one is left out (§6). In a
     /// kept folder, a file the file system marks executable is flagged x.
     std::vector<std::string> keep;
+    /// Paths in the folder, relative to it, left out with everything under
+    /// them: what a consumer knows is made, not kept ("build", a workspace's
+    /// output). Never in SQ-INF/, never with a "..".
+    std::vector<std::string> leave_out;
 };
 
 /// Pack an exploded cartridge, `folder`, into a new cartridge, `out`, as one
 /// commit (§6): its regular files, with the metadata SQ-INF/entries.json
 /// gives them; never a symbolic link (refused, not followed), never the
 /// top-level folder whose name begins with a dot (.git/, a tool's working
-/// state) unless pack_options.keep names it, never entries.json itself.
+/// state) unless pack_options.keep names it, never what pack_options.leave_out
+/// names, never entries.json itself.
 Result<Commit> pack(const std::filesystem::path& folder, const std::filesystem::path& out, WriteOptions options = {},
                     PackOptions pack_options = {}, std::optional<SigningKey> key = std::nullopt);
 
@@ -1525,6 +1530,19 @@ Result<Commit> pack(const std::filesystem::path& folder, const std::filesystem::
             return fail(Code::path, "keep: a top-level folder named with a dot (.git), not " + k);
         if (!fs::is_directory(fs::symlink_status(folder / k, ec))) return fail(Code::path, "keep: no folder " + k + " at the top");
     }
+    // What is left out: relative paths in the folder, and not SQ-INF.
+    for (const std::string& l : pack_options.leave_out) {
+        const fs::path lp(l);
+        if (l.empty() || lp.is_absolute() || std::ranges::any_of(lp, [](const fs::path& part) { return part == ".."; }) ||
+            l == "SQ-INF" || l.starts_with("SQ-INF/"))
+            return fail(Code::path, "leave_out: a path in the folder, outside SQ-INF, not " + l);
+    }
+    auto left_out = [&](std::string_view name) {
+        return std::ranges::any_of(pack_options.leave_out, [&](const std::string& l) {
+            const std::string_view p = std::string_view(l).ends_with('/') ? std::string_view(l).substr(0, l.size() - 1) : std::string_view(l);
+            return name == p || (name.starts_with(p) && name.size() > p.size() && name[p.size()] == '/');
+        });
+    };
     auto kept = [&](std::string_view name) {
         return std::ranges::any_of(pack_options.keep, [&](const std::string& k) { return name == k || name.starts_with(k + "/"); });
     };
@@ -1542,6 +1560,10 @@ Result<Commit> pack(const std::filesystem::path& folder, const std::filesystem::
         if (!valid_utf8(name)) return fail(Code::path, "a name that is not UTF-8", name);
         name = nfc(name);
         const auto status = it->symlink_status(ec);
+        if (left_out(name)) {  // before the link check: a left-out link is not looked at
+            if (fs::is_directory(status)) it.disable_recursion_pending();
+            continue;
+        }
         if (fs::is_symlink(status)) return fail(Code::path, "a symbolic link: refused, not followed (§6)", name);
         // A top-level folder named with a dot: a tool's working state
         // (.git/, and any consumer's), left out unless kept by name (§6).
@@ -1568,12 +1590,12 @@ Result<Commit> pack(const std::filesystem::path& folder, const std::filesystem::
     if (!w) return std::unexpected(w.error());
     if (key) w->sign_with(std::move(*key));
     for (const auto& [name, p] : files) {
-        auto bytes = read_file(p);
-        if (!bytes) return fail(Code::io, "cannot read it", name);
         PutOptions o;
         if (auto m = metadata.find(name); m != metadata.end()) o = m->second;
         else if (executable.contains(name)) o.flags = flag::r | flag::x;
-        if (auto r = w->put(name, *bytes, o); !r) return std::unexpected(r.error());
+        // Read at the commit, 1 MiB at a time: a file is never held whole
+        // (chunked past 64 MiB), so a large asset packs on a phone too.
+        if (auto r = w->put_file(name, p, o); !r) return std::unexpected(r.error());
     }
     return w->commit();
 }

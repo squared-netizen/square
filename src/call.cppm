@@ -16,10 +16,11 @@ import sq.data;
 import square.workspace;
 import square.resources;
 import square.survey;
+import square.cartridge;
 
 export namespace square {
 
-inline constexpr std::string_view tool_version = "0.4.0";
+inline constexpr std::string_view tool_version = "0.5.0";
 
 /// What square answers: its commands and their arguments.
 inline JsonValue describe() {
@@ -37,6 +38,8 @@ inline JsonValue describe() {
                          command("verify", "{workspace?}", "every listed path that changed or went missing"),
                          command("roles", "{workspace?}", "each role: its path, whether it is there, its files and their class"),
                          command("find", "{dir?}", "the workspaces under a folder (here by default), exploded or .sq, newest first"),
+                         command("pack", "{workspace?, out?}", "the workspace into a new .sq (build/ left out), through sqdrive"),
+                         command("explode", "{cartridge, into?}", "a .sq workspace out as a folder, into/<name> (here by default)"),
                          command("resources", "{kind?, search?}", "the templates, kits, packages and assets on the search path"),
                          command("show", "{id, search?}", "one resource (id or id@version): what it is and needs"),
                          command("describe", "{}", "this"),
@@ -78,6 +81,13 @@ inline std::optional<std::string> arg(const JsonValue* args, std::string_view na
 inline Answer run(std::string_view command, const JsonValue* args, const std::filesystem::path& from) {
     if (command == "describe") return describe();
     if (command == "resources") return resources(detail::arg(args, "search"), detail::arg(args, "kind"));
+    if (command == "explode") {
+        const auto cart = detail::arg(args, "cartridge");
+        if (!cart) return std::unexpected(Failure{"request.args", "explode: args.cartridge, a .sq file"});
+        const auto into = detail::arg(args, "into");
+        const auto at = [&](const std::string& p) { return std::filesystem::path(p).is_relative() ? from / p : std::filesystem::path(p); };
+        return explode(at(*cart), into ? at(*into) : from);
+    }
     if (command == "find") {
         const auto dir = detail::arg(args, "dir");
         return find(dir ? std::filesystem::path(*dir).is_relative() ? from / *dir : std::filesystem::path(*dir) : from);
@@ -93,6 +103,12 @@ inline Answer run(std::string_view command, const JsonValue* args, const std::fi
     if (command == "info") return info(*ws);
     if (command == "verify") return verify(*ws);
     if (command == "roles") return roles(*ws);
+    if (command == "pack") {
+        const auto out = detail::arg(args, "out");
+        return pack(*ws, out ? std::optional<std::filesystem::path>(std::filesystem::path(*out).is_relative() ? from / *out
+                                                                                                             : std::filesystem::path(*out))
+                             : std::nullopt);
+    }
     if (command == "where") {
         const auto role = detail::arg(args, "role");
         if (!role) return std::unexpected(Failure{"request.args", "where: args.role, a role's name"});
@@ -104,7 +120,7 @@ inline Answer run(std::string_view command, const JsonValue* args, const std::fi
         return owner(*ws, *path, from);
     }
     JsonValue::Array known;
-    for (const char* name : {"info", "where", "owner", "verify", "roles", "find", "resources", "show", "describe"}) {
+    for (const char* name : {"info", "where", "owner", "verify", "roles", "find", "pack", "explode", "resources", "show", "describe"}) {
         known.emplace_back(name);
     }
     return std::unexpected(Failure{"request.command.unknown", std::format("square answers no command {}", command),

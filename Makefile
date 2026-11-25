@@ -5,9 +5,10 @@
 #   make lib                     libsquare: build/libsquare.a and its module,
 #                                square (build/pcm/square.pcm), for sqpg and sqgui
 #
-# Offline: sq.cart (the cartridge reader, with squared's sq.data and yyjson
-# inside it) is vendored in third_party/sqcart (tools/vendor_sqcart.sh) and
-# built there; square takes its std module and sq.data from that build. The
+# Offline: sq.drive (sqdrive's library: how square moves cartridges, pack
+# and explode) is vendored in third_party/sqdrive, and the sq.cart it builds
+# on (with squared's sq.data and yyjson inside it) in third_party/sqcart,
+# both by tools/vendor_sqdrive.sh; sq.cart is built there; square takes its std module and sq.data from that build. The
 # std module's source is found from the compiler's manifest with make's own
 # functions (no sed), and handed to sqcart's build as STD_CPPM.
 
@@ -21,7 +22,7 @@ CART_B   := $(abspath $(BUILD))/sqcart
 CXXFLAGS := -std=c++23 $(STDLIB) $(OPT) $(WARN) \
             -fprebuilt-module-path=$(CART_B)/pcm -fprebuilt-module-path=$(BUILD)/pcm \
             -fmodule-file=std=$(CART_B)/pcm/std.pcm
-LDFLAGS  := $(STDLIB)
+LDFLAGS  := $(STDLIB) -lpthread
 
 STD_MANIFEST := $(shell readlink -f "$$($(CXX) $(STDLIB) -print-library-module-manifest-path 2>/dev/null)" 2>/dev/null)
 comma := ,
@@ -29,10 +30,12 @@ STD_WORDS    := $(if $(wildcard $(STD_MANIFEST)),$(subst ", ,$(subst $(comma), ,
 STD_SOURCE   := $(firstword $(filter %/std.cppm std.cppm,$(STD_WORDS)))
 STD_CPPM     ?= $(if $(filter /%,$(STD_SOURCE)),$(STD_SOURCE),$(if $(STD_SOURCE),$(dir $(STD_MANIFEST))$(STD_SOURCE)))
 
-# Reading only: sq.cart (with std, sq.data and yyjson) and zstd's decoder.
-CART_LIBS := $(CART_B)/libsqcart.a $(CART_B)/libsqcart-unzstd.a
-MODULES   := workspace resources survey call
-OBJS      := $(MODULES:%=$(BUILD)/obj/%.o)
+# Reading and writing: sq.cart (with std, sq.data and yyjson), sq.cart.write
+# and all of zstd; sq.drive on them.
+CART_LIBS := $(CART_B)/libsqcart-write.a $(CART_B)/libsqcart.a $(CART_B)/libsqcart-zstd.a
+CART_PCMS := $(CART_B)/pcm/sq.cart.pcm $(CART_B)/pcm/sq.cart.write.pcm
+MODULES   := workspace resources survey cartridge call
+OBJS      := $(MODULES:%=$(BUILD)/obj/%.o) $(BUILD)/obj/drive.o
 LIB       := $(BUILD)/libsquare.a
 
 .PHONY: all lib test clean sqcart
@@ -42,8 +45,13 @@ lib: $(LIB) $(BUILD)/pcm/square.pcm
 # sqcart's own build, told the std module's source and not to look for it.
 sqcart:
 	$(MAKE) -C $(CART) BUILD=$(CART_B) CXX='$(CXX)' OPT='$(OPT)' STD_MANIFEST= STD_CPPM='$(STD_CPPM)' \
-	    $(CART_LIBS) $(CART_B)/pcm/sq.cart.pcm
-$(CART_LIBS) $(CART_B)/pcm/sq.cart.pcm: sqcart
+	    $(CART_LIBS) $(CART_PCMS)
+$(CART_LIBS) $(CART_PCMS): sqcart
+
+# sq.drive: sqdrive's one module.
+$(BUILD)/pcm/sq.drive.pcm $(BUILD)/obj/drive.o &: third_party/sqdrive/src/drive.cppm $(CART_PCMS)
+	@mkdir -p $(BUILD)/pcm $(BUILD)/obj
+	$(CXX) $(CXXFLAGS) -Wno-conversion -c $< -fmodule-output=$(BUILD)/pcm/sq.drive.pcm -o $(BUILD)/obj/drive.o
 
 define unit
 $(BUILD)/pcm/square.$(1).pcm $(BUILD)/obj/$(1).o &: src/$(1).cppm $(CART_B)/pcm/sq.cart.pcm $(2)
@@ -53,7 +61,8 @@ endef
 $(eval $(call unit,workspace,))
 $(eval $(call unit,resources,$(BUILD)/pcm/square.workspace.pcm))
 $(eval $(call unit,survey,$(BUILD)/pcm/square.workspace.pcm))
-$(eval $(call unit,call,$(BUILD)/pcm/square.workspace.pcm $(BUILD)/pcm/square.resources.pcm $(BUILD)/pcm/square.survey.pcm))
+$(eval $(call unit,cartridge,$(BUILD)/pcm/square.workspace.pcm $(BUILD)/pcm/sq.drive.pcm))
+$(eval $(call unit,call,$(BUILD)/pcm/square.workspace.pcm $(BUILD)/pcm/square.resources.pcm $(BUILD)/pcm/square.survey.pcm $(BUILD)/pcm/square.cartridge.pcm))
 
 # libsquare's one module, square, which re-exports the three.
 $(BUILD)/pcm/square.pcm $(BUILD)/obj/square.o &: src/square.cppm $(MODULES:%=$(BUILD)/pcm/square.%.pcm)

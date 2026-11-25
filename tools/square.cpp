@@ -10,6 +10,8 @@
 //   square verify                     what changed since it was written
 //   square roles                      each role: its path, its files and their class
 //   square find [DIR]                 the workspaces under DIR (here): exploded or .sq
+//   square pack [OUT]                 this workspace into a new .sq (build/ left out)
+//   square explode CART [DIR]         a .sq workspace out as a folder, DIR/<name>
 //   square resources [KIND]           templates, kits, packages and assets found
 //   square show ID[@VERSION]          one of them: what it is and needs
 //   square call < REQUEST.json        one request, one response (the SDK's protocol)
@@ -36,6 +38,8 @@ int usage(std::FILE* out = stderr, int status = 2) {
                  "       square [--workspace DIR] [--json] verify\n"
                  "       square [--workspace DIR] [--json] roles\n"
                  "       square [--json] find [DIR]\n"
+                 "       square [--workspace DIR] [--json] pack [OUT]\n"
+                 "       square [--json] explode CART [DIR]\n"
                  "       square [--resources PATH] [--json] resources [KIND]\n"
                  "       square [--resources PATH] [--json] show ID[@VERSION]\n"
                  "       square call < REQUEST.json\n"
@@ -116,6 +120,12 @@ void say(std::string_view command, const sq::data::JsonValue& r) {
                                            : std::format("{} file{}{}", count, count == 1 ? "" : "s",
                                                          truncated ? " (and more)" : ""));
         }
+    } else if (command == "pack") {
+        std::println("{}  ({} bytes; left out: build)", text(r.find("cartridge")),
+                     json(r.find("bytes") != nullptr ? *r.find("bytes") : sq::data::JsonValue(std::int64_t{0}), false));
+    } else if (command == "explode") {
+        std::println("{}  ({} files)", text(r.find("workspace")),
+                     json(r.find("files") != nullptr ? *r.find("files") : sq::data::JsonValue(std::int64_t{0}), false));
     } else if (command == "find") {
         const sq::data::JsonValue* list = r.find("workspaces");
         if (list == nullptr || list->array_if() == nullptr || list->array_if()->empty()) {
@@ -211,6 +221,13 @@ int main(int argc, char** argv) {
     if (command == "where" || command == "owner" || command == "show") {
         if (words.size() != 2) return usage();
         request_args.emplace(command == "where" ? "role" : command == "owner" ? "path" : "id", sq::data::JsonValue(words[1]));
+    } else if (command == "pack") {
+        if (words.size() > 2) return usage();
+        if (words.size() == 2) request_args.emplace("out", sq::data::JsonValue(words[1]));
+    } else if (command == "explode") {
+        if (words.size() < 2 || words.size() > 3) return usage();
+        request_args.emplace("cartridge", sq::data::JsonValue(words[1]));
+        if (words.size() == 3) request_args.emplace("into", sq::data::JsonValue(words[2]));
     } else if (command == "resources" || command == "find") {
         if (words.size() > 2) return usage();
         if (words.size() == 2) request_args.emplace(command == "find" ? "dir" : "kind", sq::data::JsonValue(words[1]));

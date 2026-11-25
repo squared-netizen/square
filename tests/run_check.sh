@@ -107,6 +107,32 @@ grep -q 'could not read .*broken.sq' "$work/err.txt" || die "find: a broken .sq 
 ! "$square" find "$work/none" 2> /dev/null || die "find: not a folder"
 ok "find: newest first; hidden, too deep and nested left out; a broken .sq reported"
 
+# pack and explode, through sqdrive: build/ and .git/ left out; a .sq found
+# by find; exploded back into a folder of its own, the same files.
+mkdir -p "$ws/build" "$ws/.git"
+printf 'made\n' > "$ws/build/app.o"
+printf 'ref\n' > "$ws/.git/HEAD"
+mkdir -p "$work/shelf"
+out=$(cd "$ws" && "$square" pack "$work/shelf/demo.sq")
+grep -q "shelf/demo.sq" <<< "$out" || die "pack: $out"
+(cd "$ws" && ! "$square" pack "$work/shelf/demo.sq" 2> "$work/err.txt") && grep -q 'there already' "$work/err.txt" ||
+    die "pack: refuses a file that is there"
+out=$("$square" find "$work/shelf")
+grep -q '^compressed  *dev.me.demo  *0.1.0 .*shelf/demo.sq$' <<< "$out" || die "find: the .sq: $out"
+out=$("$square" explode "$work/shelf/demo.sq" "$work/back")
+grep -q 'back/demo  (' <<< "$out" || die "explode: $out"
+[ -f "$work/back/demo/sq_app/src/main.cpp" ] && [ -f "$work/back/demo/SQ-INF/files.json" ] || die "explode: the files"
+[ ! -e "$work/back/demo/build" ] && [ ! -e "$work/back/demo/.git" ] || die "explode: build/ or .git/ came back"
+cmp -s "$ws/sq_app/src/main.cpp" "$work/back/demo/sq_app/src/main.cpp" || die "explode: not the same bytes"
+(cd "$work/back/demo" && "$square" info) | grep -q 'demo  dev.me.demo 0.1.0' || die "explode: not a workspace again"
+! "$square" explode "$work/shelf/demo.sq" "$work/back" 2> /dev/null || die "explode: over a folder that is there"
+mkdir -p "$work/notws/SQ-INF"
+printf '{"format":"squared-cartridge","format_version":3,"kind":"kit","id":"kit.x","version":"1.0.0"}' > "$work/notws/SQ-INF/manifest.json"
+! "$square" --workspace "$work/notws" pack "$work/shelf/kit.sq" 2> /dev/null || die "pack: a kit is not a workspace"
+resp=$(printf '{"sq": 1, "command": "explode", "args": {"cartridge": "%s", "into": "%s"}}' "$work/shelf/demo.sq" "$work/again" | "$square" call)
+grep -q '"files":' <<< "$resp" || die "call explode: $resp"
+ok "pack and explode (sqdrive): build/ and .git/ left out; find sees the .sq; back the same; refusals"
+
 # Resources: cartridges on a search path, in it or in templates/, kits/ ...
 res=$work/resources
 cart() {  # cart DIR KIND ID VERSION TITLE [EXTRA-JSON]
